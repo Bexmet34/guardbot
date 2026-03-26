@@ -1,0 +1,7 @@
+.env
+node_modules/
+guard.db
+backup_*.json
+package-lock.json
+.DS_Store
+*.log
