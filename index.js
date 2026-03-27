@@ -466,26 +466,34 @@ client.on(Events.InteractionCreate, async (interaction) => {
       const text = options.getString('mesaj') || 'Duyuru içeriği';
       const colorInput = options.getString('renk') || '#5865F2';
       const image = options.getString('görsel');
-      const mention = options.getString('etiket');
+      
+      const roles = [];
+      const r1 = options.getRole('rol1'); if (r1) roles.push(r1);
+      const r2 = options.getRole('rol2'); if (r2) roles.push(r2);
+      const r3 = options.getRole('rol3'); if (r3) roles.push(r3);
 
       const embed = new EmbedBuilder().setTitle(title).setDescription(text).setTimestamp();
       try { embed.setColor(colorInput); } catch (e) { embed.setColor('#5865F2'); }
       if (image) try { embed.setImage(image); } catch (e) {}
       
-      await channel.send({ content: mention ? (mention === 'everyone' ? '@everyone' : '@here') : null, embeds: [embed] });
+      const mentionString = roles.length > 0 ? roles.map(r => `<@&${r.id}>`).join(' ') : null;
+      await channel.send({ content: mentionString, embeds: [embed] });
       
-      // DM Gönderme İşlemi (Arka Planda)
-      interaction.reply({ content: '✅ Duyuru kanala gönderildi ve üyelere DM olarak iletiliyor...', flags: EFM });
+      // DM Gönderme İşlemi (Sadece Belirli Rollere)
+      interaction.reply({ content: roles.length > 0 ? `✅ Duyuru kanala gönderildi ve ${roles.map(r => r.name).join(', ')} üyelerine DM iletiliyor...` : '✅ Duyuru kanala gönderildi. (Rol seçilmediği için DM gönderilmedi)', flags: EFM });
 
-      const members = await guild.members.fetch();
-      members.forEach(async (m) => {
-        if (m.user.bot) return;
-        try {
-          await m.send({ embeds: [embed] });
-        } catch (err) {
-          // DM kapalı olanlar için hata verebilir, yoksayıyoruz
-        }
-      });
+      if (roles.length > 0) {
+        const members = await guild.members.fetch();
+        const targetedMembers = members.filter(m => !m.user.bot && roles.some(r => m.roles.cache.has(r.id)));
+        
+        targetedMembers.forEach(async (m) => {
+          try {
+            await m.send({ embeds: [embed] });
+          } catch (err) {
+            // DM kapalı
+          }
+        });
+      }
       return;
     }
 

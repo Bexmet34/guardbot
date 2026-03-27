@@ -86,7 +86,9 @@ const commands = [
     .addStringOption(opt => opt.setName('başlık').setDescription('Duyuru başlığı'))
     .addStringOption(opt => opt.setName('renk').setDescription('Renk (#Hex)'))
     .addStringOption(opt => opt.setName('görsel').setDescription('Resim URL'))
-    .addStringOption(opt => opt.setName('etiket').setDescription('Etiket seçin').addChoices({ name: '@everyone', value: 'everyone' }, { name: '@here', value: 'here' })),
+    .addRoleOption(opt => opt.setName('rol1').setDescription('Hedef rol 1'))
+    .addRoleOption(opt => opt.setName('rol2').setDescription('Hedef rol 2'))
+    .addRoleOption(opt => opt.setName('rol3').setDescription('Hedef rol 3')),
 
   new SlashCommandBuilder()
     .setName('seçim-oluştur')
