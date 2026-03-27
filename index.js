@@ -238,7 +238,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
               newEmbed.addFields({ 
                   name: `**📍 ${optionName}** — (\`${users.length}\` Kişi)`, 
                   value: `\u200B`, 
-                  inline: true 
+                  inline: false 
               });
           });
 
@@ -574,7 +574,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       try { embed.setColor(colorInput); } catch (e) { embed.setColor('#5865F2'); }
 
       optionsList.forEach(opt => {
-          embed.addFields({ name: `**📍 ${opt}** — (\`0\` Kişi)`, value: `\u200B`, inline: true });
+          embed.addFields({ name: `**📍 ${opt}** — (\`0\` Kişi)`, value: `\u200B`, inline: false });
       });
 
       embed.setFooter({ text: 'İstediğin kadar seçeneğe tıklayarak çoklu seçim yapabilirsin.' });
