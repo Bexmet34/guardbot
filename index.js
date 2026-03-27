@@ -480,18 +480,41 @@ client.on(Events.InteractionCreate, async (interaction) => {
       await channel.send({ content: mentionString, embeds: [embed] });
       
       // DM Gönderme İşlemi (Sadece Belirli Rollere)
-      interaction.reply({ content: roles.length > 0 ? `✅ Duyuru kanala gönderildi ve ${roles.map(r => r.name).join(', ')} üyelerine DM iletiliyor...` : '✅ Duyuru kanala gönderildi. (Rol seçilmediği için DM gönderilmedi)', flags: EFM });
+      const initialMsg = roles.length > 0 ? `⏳ Duyuru kanala gönderildi. Üyelere DM iletiliyor...` : '✅ Duyuru kanala gönderildi. (Rol seçilmediği için DM gönderilmedi)';
+      await interaction.reply({ content: initialMsg, flags: EFM });
 
       if (roles.length > 0) {
         const members = await guild.members.fetch();
-        const targetedMembers = members.filter(m => !m.user.bot && roles.some(r => m.roles.cache.has(r.id)));
+        const targetedMembers = Array.from(members.filter(m => !m.user.bot && roles.some(r => m.roles.cache.has(r.id))).values());
         
-        targetedMembers.forEach(async (m) => {
+        let sent = 0;
+        let failed = 0;
+        let total = targetedMembers.length;
+
+        if (total === 0) return interaction.editReply({ content: '❌ Seçilen rollere sahip üye bulunamadı.' });
+
+        for (let i = 0; i < total; i++) {
+          const m = targetedMembers[i];
           try {
             await m.send({ embeds: [embed] });
+            sent++;
           } catch (err) {
-            // DM kapalı
+            failed++;
           }
+
+          // Her 5 kişide bir veya son kişide mesajı güncelle (Rate limit dostu)
+          if ((i + 1) % 5 === 0 || (i + 1) === total) {
+            await interaction.editReply({ 
+              content: `⏳ **Duyuru İletiliyor...**\n✅ Gönderilen: \`${sent}\`\n❌ Başarısız: \`${failed}\`\n📦 Kalan: \`${total - (i + 1)}\`\n📊 Toplam: \`${total}\`` 
+            }).catch(() => {});
+          }
+          
+          // Çok hızlı gitmemek için minik bir bekleme (Opsiyonel ama önerilir)
+          await new Promise(resolve => setTimeout(resolve, 300));
+        }
+
+        await interaction.editReply({ 
+          content: `✅ **Duyuru Tamamlandı!**\n🎉 Başarıyla gönderilen: \`${sent}\`\n⚠️ Başarısız (DM Kapalı): \`${failed}\`\n👥 Toplam Hedef: \`${total}\`` 
         });
       }
       return;
