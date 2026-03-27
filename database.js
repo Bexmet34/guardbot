@@ -25,7 +25,10 @@ db.exec(`
     ban_on_nuke INTEGER DEFAULT 1
   );
 
-  CREATE TABLE IF NOT EXISTS choices (
+  -- Eski kısıtlamalı tabloyu düzeltmek için (migration)
+  -- NOT: Bu işlem mevcut seçimleri temizleyecektir
+  DROP TABLE IF EXISTS choices;
+  CREATE TABLE choices (
     message_id TEXT,
     user_id TEXT,
     option_value TEXT,
