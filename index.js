@@ -498,65 +498,28 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (commandName === 'duyuru') {
       if (!member.permissions.has(PermissionsBitField.Flags.ManageMessages)) return interaction.reply({ content: 'Yetki yok.', flags: EFM });
       
-      // Hemen yanıtı erteliyoruz ki 3 saniye sınırı bizi engellemesin
-      await interaction.deferReply({ flags: EFM });
-
       const channel = options.getChannel('kanal');
-      const title = options.getString('başlık') || 'Duyuru';
-      const text = options.getString('mesaj') || 'Duyuru içeriği';
+      const title = options.getString('başlık') || '📢 Duyuru';
+      const text = options.getString('mesaj');
       const colorInput = options.getString('renk') || '#5865F2';
       const image = options.getString('görsel');
+      const everyone = options.getBoolean('everyone');
       
-      const roles = [];
-      const r1 = options.getRole('rol1'); if (r1) roles.push(r1);
-      const r2 = options.getRole('rol2'); if (r2) roles.push(r2);
-      const r3 = options.getRole('rol3'); if (r3) roles.push(r3);
+      const mentions = [];
+      if (everyone) mentions.push('@everyone');
+      ['rol1', 'rol2', 'rol3'].forEach(rName => {
+        const r = options.getRole(rName);
+        if (r) mentions.push(`<@&${r.id}>`);
+      });
 
       const embed = new EmbedBuilder().setTitle(title).setDescription(text).setTimestamp();
       try { embed.setColor(colorInput); } catch (e) { embed.setColor('#5865F2'); }
       if (image) try { embed.setImage(image); } catch (e) {}
       
-      const mentionString = roles.length > 0 ? roles.map(r => `<@&${r.id}>`).join(' ') : null;
+      const mentionString = mentions.length > 0 ? mentions.join(' ') : null;
       await channel.send({ content: mentionString, embeds: [embed] });
       
-      const initialMsg = roles.length > 0 ? `⏳ Duyuru kanala gönderildi. Üyelere DM iletiliyor...` : '✅ Duyuru kanala gönderildi. (Rol seçilmediği için DM gönderilmedi)';
-      await interaction.editReply({ content: initialMsg });
-
-      if (roles.length > 0) {
-        const members = await guild.members.fetch();
-        const targetedMembers = Array.from(members.filter(m => !m.user.bot && roles.some(r => m.roles.cache.has(r.id))).values());
-        
-        let sent = 0;
-        let failed = 0;
-        let total = targetedMembers.length;
-
-        if (total === 0) return interaction.editReply({ content: '❌ Seçilen rollere sahip üye bulunamadı. (Developer Portal\'dan SERVER MEMBERS INTENT ayarını kontrol edin)' });
-
-        for (let i = 0; i < total; i++) {
-          const m = targetedMembers[i];
-          try {
-            await m.user.send({ embeds: [embed] });
-            sent++;
-          } catch (err) {
-            console.error(`DM Gönderim Hatası (${m.user.tag}):`, err.message);
-            failed++;
-          }
-
-          // Her 5 kişide bir veya son kişide mesajı güncelle (Rate limit dostu)
-          if ((i + 1) % 5 === 0 || (i + 1) === total) {
-            await interaction.editReply({ 
-              content: `⏳ **Duyuru İletiliyor...**\n✅ Gönderilen: \`${sent}\`\n❌ Başarısız: \`${failed}\`\n📦 Kalan: \`${total - (i + 1)}\`\n📊 Toplam: \`${total}\`` 
-            }).catch(() => {});
-          }
-          
-          await new Promise(resolve => setTimeout(resolve, 500));
-        }
-
-        await interaction.editReply({ 
-          content: `✅ **Duyuru Tamamlandı!**\n🎉 Başarıyla gönderilen: \`${sent}\`\n⚠️ Başarısız: \`${failed}\`\n👥 Toplam Hedef: \`${total}\`\n\n*Not: Eğer hepsi başarısız ise botun DM yetkisini veya Developer Portal'dan Intent ayarlarını kontrol edin.*` 
-        });
-      }
-      return;
+      return interaction.reply({ content: `✅ Duyuru başarıyla <#${channel.id}> kanalına gönderildi.`, flags: EFM });
     }
 
     if (commandName === 'seçim-oluştur') {

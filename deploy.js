@@ -81,14 +81,15 @@ const commands = [
     .setName('duyuru')
     .setDescription('Profesyonel duyuru paylaşın')
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
-    .addChannelOption(opt => opt.setName('kanal').setDescription('Kanal seçin').setRequired(true))
-    .addStringOption(opt => opt.setName('mesaj').setDescription('İçerik mesajı'))
+    .addChannelOption(opt => opt.setName('kanal').setDescription('Duyurunun gönderileceği kanal').setRequired(true))
+    .addStringOption(opt => opt.setName('mesaj').setDescription('Duyuru mesajı içeriği').setRequired(true))
     .addStringOption(opt => opt.setName('başlık').setDescription('Duyuru başlığı'))
-    .addStringOption(opt => opt.setName('renk').setDescription('Renk (#Hex)'))
-    .addStringOption(opt => opt.setName('görsel').setDescription('Resim URL'))
-    .addRoleOption(opt => opt.setName('rol1').setDescription('Hedef rol 1'))
-    .addRoleOption(opt => opt.setName('rol2').setDescription('Hedef rol 2'))
-    .addRoleOption(opt => opt.setName('rol3').setDescription('Hedef rol 3')),
+    .addStringOption(opt => opt.setName('renk').setDescription('Renk (#Hex kodu)'))
+    .addStringOption(opt => opt.setName('görsel').setDescription('Kapak görseli (URL)'))
+    .addBooleanOption(opt => opt.setName('everyone').setDescription('@everyone etiketlensin mi?'))
+    .addRoleOption(opt => opt.setName('rol1').setDescription('Etiketlenecek rol 1'))
+    .addRoleOption(opt => opt.setName('rol2').setDescription('Etiketlenecek rol 2'))
+    .addRoleOption(opt => opt.setName('rol3').setDescription('Etiketlenecek rol 3')),
 
   new SlashCommandBuilder()
     .setName('seçim-oluştur')
