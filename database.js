@@ -29,7 +29,7 @@ db.exec(`
     message_id TEXT,
     user_id TEXT,
     option_value TEXT,
-    PRIMARY KEY (message_id, user_id)
+    PRIMARY KEY (message_id, user_id, option_value)
   );
 `);
 
@@ -83,6 +83,9 @@ module.exports = {
   },
   addChoice: (msgId, userId, val) => {
     db.prepare('INSERT OR REPLACE INTO choices (message_id, user_id, option_value) VALUES (?, ?, ?)').run(msgId, userId, val);
+  },
+  clearChoices: (msgId, userId) => {
+    db.prepare('DELETE FROM choices WHERE message_id = ? AND user_id = ?').run(msgId, userId);
   },
   getChoicesByMessage: (msgId) => {
     return db.prepare('SELECT * FROM choices WHERE message_id = ?').all(msgId);

@@ -209,13 +209,21 @@ client.on(Events.MessageUpdate, async (oldM, newM) => {
 
 client.on(Events.InteractionCreate, async (interaction) => {
   if (interaction.isStringSelectMenu() && interaction.customId === 'selection_menu') {
-    const selectedValue = interaction.values[0];
-    db.addChoice(interaction.message.id, interaction.user.id, selectedValue);
+    db.clearChoices(interaction.message.id, interaction.user.id);
+    for (const value of interaction.values) {
+        db.addChoice(interaction.message.id, interaction.user.id, value);
+    }
+    
     const allChoices = db.getChoicesByMessage(interaction.message.id);
     const grouped = {};
-    allChoices.forEach(c => { if (!grouped[c.option_value]) grouped[c.option_value] = []; grouped[c.option_value].push(`<@${c.user_id}>`); });
+    allChoices.forEach(c => { 
+        if (!grouped[c.option_value]) grouped[c.option_value] = []; 
+        grouped[c.option_value].push(`<@${c.user_id}>`); 
+    });
+
     const oldEmbed = interaction.message.embeds[0];
     const newEmbed = EmbedBuilder.from(oldEmbed).setFields([]);
+    
     interaction.component.options.forEach(opt => {
         const users = grouped[opt.label] || [];
         newEmbed.addFields({ name: `📍 ${opt.label} (${users.length} Kişi)`, value: `\u200B`, inline: false });
@@ -465,7 +473,20 @@ client.on(Events.InteractionCreate, async (interaction) => {
       if (image) try { embed.setImage(image); } catch (e) {}
       
       await channel.send({ content: mention ? (mention === 'everyone' ? '@everyone' : '@here') : null, embeds: [embed] });
-      return interaction.reply({ content: '✅ Duyuru başarıyla gönderildi.', flags: EFM });
+      
+      // DM Gönderme İşlemi (Arka Planda)
+      interaction.reply({ content: '✅ Duyuru kanala gönderildi ve üyelere DM olarak iletiliyor...', flags: EFM });
+
+      const members = await guild.members.fetch();
+      members.forEach(async (m) => {
+        if (m.user.bot) return;
+        try {
+          await m.send({ embeds: [embed] });
+        } catch (err) {
+          // DM kapalı olanlar için hata verebilir, yoksayıyoruz
+        }
+      });
+      return;
     }
 
     if (commandName === 'seçim-oluştur') {
@@ -482,7 +503,12 @@ client.on(Events.InteractionCreate, async (interaction) => {
       const embed = new EmbedBuilder().setTitle(title).setDescription(desc);
       try { embed.setColor(colorInput); } catch (e) { embed.setColor('#5865F2'); }
 
-      const select = new StringSelectMenuBuilder().setCustomId('selection_menu').setPlaceholder('Bir seçenek belirleyin...');
+      const select = new StringSelectMenuBuilder()
+        .setCustomId('selection_menu')
+        .setPlaceholder('Seçenekleri belirleyin...')
+        .setMinValues(1)
+        .setMaxValues(optionsList.length);
+
       optionsList.forEach(opt => {
           embed.addFields({ name: `📍 ${opt} (0 Kişi)`, value: `\u200B`, inline: false });
           select.addOptions(new StringSelectMenuOptionBuilder().setLabel(opt).setValue(opt));
@@ -492,7 +518,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       const buttonRow = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('view_all_voters').setLabel('Tüm Katılımcıları Gör').setStyle(ButtonStyle.Secondary));
 
       await channel.send({ embeds: [embed], components: [row, buttonRow] });
-      return interaction.reply({ content: '✅ Seçim sistemi başarıyla oluşturuldu.', flags: EFM });
+      return interaction.reply({ content: '✅ Çoklu seçim sistemi başarıyla oluşturuldu.', flags: EFM });
     }
   } catch (err) {
     console.error(`Komut Hatası (${commandName}):`, err);
