@@ -208,6 +208,45 @@ client.on(Events.MessageUpdate, async (oldM, newM) => {
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {
+  if (interaction.isStringSelectMenu() && interaction.customId === 'selection_menu') {
+      db.clearChoices(interaction.message.id, interaction.user.id);
+      for (const val of interaction.values) {
+          db.addChoice(interaction.message.id, interaction.user.id, val);
+      }
+
+      const updateElectionEmbed = async () => {
+          const allChoices = db.getChoicesByMessage(interaction.message.id);
+          const uniqueVoters = new Set(allChoices.map(c => c.user_id)).size;
+          const grouped = {};
+          allChoices.forEach(c => { 
+              if (!grouped[c.option_value]) grouped[c.option_value] = []; 
+              grouped[c.option_value].push(`<@${c.user_id}>`); 
+          });
+
+          const oldEmbed = interaction.message.embeds[0];
+          const newEmbed = EmbedBuilder.from(oldEmbed)
+              .setFields([])
+              .setFooter({ text: `Toplam Katılımcı: ${uniqueVoters} | İstediğin kadar seçenek seçebilirsin.` });
+          
+          const optionsList = [];
+          const selectMenu = interaction.message.components[0].components[0];
+          selectMenu.options.forEach(opt => optionsList.push(opt.value));
+
+          optionsList.forEach(optionName => {
+              const users = grouped[optionName] || [];
+              newEmbed.addFields({ 
+                  name: `**📍 ${optionName}** — (\`${users.length}\` Kişi)`, 
+                  value: `\u200B`, 
+                  inline: false 
+              });
+          });
+
+          return interaction.update({ embeds: [newEmbed] });
+      };
+
+      return updateElectionEmbed();
+  }
+
   if (interaction.isButton()) {
       const updateElectionEmbed = async () => {
           const allChoices = db.getChoicesByMessage(interaction.message.id);
@@ -221,20 +260,14 @@ client.on(Events.InteractionCreate, async (interaction) => {
           const oldEmbed = interaction.message.embeds[0];
           const newEmbed = EmbedBuilder.from(oldEmbed)
               .setFields([])
-              .setFooter({ text: `Toplam Katılımcı: ${uniqueVoters} | İstediğin kadar seçeneğe tıklayabilirsin.` });
+              .setFooter({ text: `Toplam Katılımcı: ${uniqueVoters} | İstediğin kadar seçenek seçebilirsin.` });
           
           const optionsList = [];
-          interaction.message.components.forEach(row => {
-              row.components.forEach(comp => {
-                  if (comp.customId && comp.customId.startsWith('vote_')) {
-                      optionsList.push(comp.customId.replace('vote_', ''));
-                  }
-              });
-          });
+          const selectMenu = interaction.message.components[0].components[0];
+          selectMenu.options.forEach(opt => optionsList.push(opt.value));
 
           optionsList.forEach(optionName => {
               const users = grouped[optionName] || [];
-              
               newEmbed.addFields({ 
                   name: `**📍 ${optionName}** — (\`${users.length}\` Kişi)`, 
                   value: `\u200B`, 
@@ -244,16 +277,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
           return interaction.update({ embeds: [newEmbed] });
       };
-
-      if (interaction.customId.startsWith('vote_')) {
-          const opt = interaction.customId.replace('vote_', '');
-          if (db.hasChoice(interaction.message.id, interaction.user.id, opt)) {
-              db.removeChoice(interaction.message.id, interaction.user.id, opt);
-          } else {
-              db.addChoice(interaction.message.id, interaction.user.id, opt);
-          }
-          return updateElectionEmbed();
-      }
 
       if (interaction.customId === 'clear_my_votes') {
           db.clearChoices(interaction.message.id, interaction.user.id);
@@ -536,37 +559,25 @@ client.on(Events.InteractionCreate, async (interaction) => {
       const embed = new EmbedBuilder().setTitle(title).setDescription(desc);
       try { embed.setColor(colorInput); } catch (e) { embed.setColor('#5865F2'); }
 
+      const select = new StringSelectMenuBuilder()
+        .setCustomId('selection_menu')
+        .setPlaceholder('Seçenekleri belirleyin...')
+        .setMinValues(1)
+        .setMaxValues(optionsList.length);
+
       optionsList.forEach(opt => {
           embed.addFields({ name: `**📍 ${opt}** — (\`0\` Kişi)`, value: `\u200B`, inline: false });
+          select.addOptions(new StringSelectMenuOptionBuilder().setLabel(opt).setValue(opt));
       });
 
-      embed.setFooter({ text: 'İstediğin kadar seçeneğe tıklayarak çoklu seçim yapabilirsin.' });
-
-      let rows = [];
-      let currentRow = new ActionRowBuilder();
-
-      optionsList.forEach((opt) => {
-          if (currentRow.components.length === 5) {
-              rows.push(currentRow);
-              currentRow = new ActionRowBuilder();
-          }
-          currentRow.addComponents(
-              new ButtonBuilder()
-                  .setCustomId(`vote_${opt}`)
-                  .setLabel(opt)
-                  .setStyle(ButtonStyle.Primary)
-          );
-      });
-      if (currentRow.components.length > 0) rows.push(currentRow);
-
+      const row = new ActionRowBuilder().addComponents(select);
       const controlsRow = new ActionRowBuilder().addComponents(
           new ButtonBuilder().setCustomId('view_all_voters').setLabel('Tüm Katılımcıları Gör').setStyle(ButtonStyle.Secondary),
           new ButtonBuilder().setCustomId('clear_my_votes').setLabel('Seçimimi Temizle').setStyle(ButtonStyle.Danger)
       );
-      rows.push(controlsRow);
 
-      await channel.send({ embeds: [embed], components: rows });
-      return interaction.reply({ content: '✅ Gelişmiş çoklu seçim sistemi başarıyla oluşturuldu.', flags: EFM });
+      await channel.send({ embeds: [embed], components: [row, controlsRow] });
+      return interaction.reply({ content: '✅ Çoklu seçim menüsü başarıyla oluşturuldu.', flags: EFM });
     }
   } catch (err) {
     console.error(`Komut Hatası (${commandName}):`, err);
