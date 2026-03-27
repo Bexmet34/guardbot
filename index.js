@@ -219,7 +219,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
           });
 
           const oldEmbed = interaction.message.embeds[0];
-          const newEmbed = EmbedBuilder.from(oldEmbed).setFields([]);
+          const newEmbed = EmbedBuilder.from(oldEmbed)
+              .setFields([])
+              .setFooter({ text: `Toplam Katılımcı: ${uniqueVoters} | İstediğin kadar seçeneğe tıklayabilirsin.` });
           
           const optionsList = [];
           interaction.message.components.forEach(row => {
@@ -234,18 +236,13 @@ client.on(Events.InteractionCreate, async (interaction) => {
               const users = grouped[optionName] || [];
               const percent = uniqueVoters > 0 ? Math.round((users.length / uniqueVoters) * 100) : 0;
               
-              let barLength = 10;
-              let filled = uniqueVoters > 0 ? Math.round(barLength * (users.length / uniqueVoters)) : 0;
-              let empty = barLength - filled;
-              const bar = '🟦'.repeat(filled) + '⬛'.repeat(empty);
-              
               const preview = users.length > 0 
-                  ? (users.slice(0, 5).join(', ') + (users.length > 5 ? ` ve ${users.length - 5} kişi daha...` : '')) 
-                  : 'Henüz oy yok.';
+                  ? (users.join(', ')) 
+                  : '_Henüz kimse seçmedi_';
 
               newEmbed.addFields({ 
-                  name: `📍 ${optionName} - ${users.length} Oy (%${percent})`, 
-                  value: `${bar}\n> ${preview}`, 
+                  name: `📍 ${optionName} (${users.length} Oy - %${percent})`, 
+                  value: `${preview}`, 
                   inline: false 
               });
           });
@@ -582,8 +579,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
       try { embed.setColor(colorInput); } catch (e) { embed.setColor('#5865F2'); }
 
       optionsList.forEach(opt => {
-          embed.addFields({ name: `📍 ${opt} - 0 Oy (%0)`, value: `⬛⬛⬛⬛⬛⬛⬛⬛⬛⬛\n> Henüz oy yok.`, inline: false });
+          embed.addFields({ name: `📍 ${opt} (0 Oy - %0)`, value: `_Henüz kimse seçmedi_`, inline: false });
       });
+
+      embed.setFooter({ text: 'İstediğin kadar seçeneğe tıklayarak çoklu seçim yapabilirsin.' });
 
       let rows = [];
       let currentRow = new ActionRowBuilder();
