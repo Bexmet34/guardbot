@@ -208,37 +208,81 @@ client.on(Events.MessageUpdate, async (oldM, newM) => {
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {
-  if (interaction.isStringSelectMenu() && interaction.customId === 'selection_menu') {
-    db.clearChoices(interaction.message.id, interaction.user.id);
-    for (const value of interaction.values) {
-        db.addChoice(interaction.message.id, interaction.user.id, value);
-    }
-    
-    const allChoices = db.getChoicesByMessage(interaction.message.id);
-    const grouped = {};
-    allChoices.forEach(c => { 
-        if (!grouped[c.option_value]) grouped[c.option_value] = []; 
-        grouped[c.option_value].push(`<@${c.user_id}>`); 
-    });
+  if (interaction.isButton()) {
+      const updateElectionEmbed = async () => {
+          const allChoices = db.getChoicesByMessage(interaction.message.id);
+          const uniqueVoters = new Set(allChoices.map(c => c.user_id)).size;
+          const grouped = {};
+          allChoices.forEach(c => { 
+              if (!grouped[c.option_value]) grouped[c.option_value] = []; 
+              grouped[c.option_value].push(`<@${c.user_id}>`); 
+          });
 
-    const oldEmbed = interaction.message.embeds[0];
-    const newEmbed = EmbedBuilder.from(oldEmbed).setFields([]);
-    
-    interaction.component.options.forEach(opt => {
-        const users = grouped[opt.label] || [];
-        newEmbed.addFields({ name: `📍 ${opt.label} (${users.length} Kişi)`, value: `\u200B`, inline: false });
-    });
-    return interaction.update({ embeds: [newEmbed] });
-  }
+          const oldEmbed = interaction.message.embeds[0];
+          const newEmbed = EmbedBuilder.from(oldEmbed).setFields([]);
+          
+          const optionsList = [];
+          interaction.message.components.forEach(row => {
+              row.components.forEach(comp => {
+                  if (comp.customId && comp.customId.startsWith('vote_')) {
+                      optionsList.push(comp.customId.replace('vote_', ''));
+                  }
+              });
+          });
 
-  if (interaction.isButton() && interaction.customId === 'view_all_voters') {
-    const allChoices = db.getChoicesByMessage(interaction.message.id);
-    if (allChoices.length === 0) return interaction.reply({ content: 'Boş.', flags: EFM });
-    const grouped = {};
-    allChoices.forEach(c => { if (!grouped[c.option_value]) grouped[c.option_value] = []; grouped[c.option_value].push(`<@${c.user_id}>`); });
-    const embed = new EmbedBuilder().setTitle('📊 Katılımcılar').setColor('#2F3136');
-    Object.keys(grouped).forEach(opt => embed.addFields({ name: opt, value: grouped[opt].join(', '), inline: false }));
-    return interaction.reply({ embeds: [embed], flags: EFM });
+          optionsList.forEach(optionName => {
+              const users = grouped[optionName] || [];
+              const percent = uniqueVoters > 0 ? Math.round((users.length / uniqueVoters) * 100) : 0;
+              
+              let barLength = 10;
+              let filled = uniqueVoters > 0 ? Math.round(barLength * (users.length / uniqueVoters)) : 0;
+              let empty = barLength - filled;
+              const bar = '🟦'.repeat(filled) + '⬛'.repeat(empty);
+              
+              const preview = users.length > 0 
+                  ? (users.slice(0, 5).join(', ') + (users.length > 5 ? ` ve ${users.length - 5} kişi daha...` : '')) 
+                  : 'Henüz oy yok.';
+
+              newEmbed.addFields({ 
+                  name: `📍 ${optionName} - ${users.length} Oy (%${percent})`, 
+                  value: `${bar}\n> ${preview}`, 
+                  inline: false 
+              });
+          });
+
+          return interaction.update({ embeds: [newEmbed] });
+      };
+
+      if (interaction.customId.startsWith('vote_')) {
+          const opt = interaction.customId.replace('vote_', '');
+          if (db.hasChoice(interaction.message.id, interaction.user.id, opt)) {
+              db.removeChoice(interaction.message.id, interaction.user.id, opt);
+          } else {
+              db.addChoice(interaction.message.id, interaction.user.id, opt);
+          }
+          return updateElectionEmbed();
+      }
+
+      if (interaction.customId === 'clear_my_votes') {
+          db.clearChoices(interaction.message.id, interaction.user.id);
+          return updateElectionEmbed();
+      }
+
+      if (interaction.customId === 'view_all_voters') {
+          const allChoices = db.getChoicesByMessage(interaction.message.id);
+          if (allChoices.length === 0) return interaction.reply({ content: 'Henüz kimse seçim yapmadı.', flags: EFM });
+          const grouped = {};
+          allChoices.forEach(c => { 
+              if (!grouped[c.option_value]) grouped[c.option_value] = []; 
+              grouped[c.option_value].push(`<@${c.user_id}>`); 
+          });
+          const embed = new EmbedBuilder().setTitle('📊 Katılımcılar').setColor('#2F3136');
+          Object.keys(grouped).forEach(opt => {
+              const uList = grouped[opt].join(', ');
+              embed.addFields({ name: `📍 ${opt}`, value: uList.length > 1024 ? uList.slice(0, 1021) + '...' : uList, inline: false });
+          });
+          return interaction.reply({ embeds: [embed], flags: EFM });
+      }
   }
 
   if (!interaction.isChatInputCommand()) return;
@@ -461,6 +505,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
     // --- EKSTRA SİSTEMLER ---
     if (commandName === 'duyuru') {
       if (!member.permissions.has(PermissionsBitField.Flags.ManageMessages)) return interaction.reply({ content: 'Yetki yok.', flags: EFM });
+      
+      // Hemen yanıtı erteliyoruz ki 3 saniye sınırı bizi engellemesin
+      await interaction.deferReply({ flags: EFM });
+
       const channel = options.getChannel('kanal');
       const title = options.getString('başlık') || 'Duyuru';
       const text = options.getString('mesaj') || 'Duyuru içeriği';
@@ -479,9 +527,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
       const mentionString = roles.length > 0 ? roles.map(r => `<@&${r.id}>`).join(' ') : null;
       await channel.send({ content: mentionString, embeds: [embed] });
       
-      // DM Gönderme İşlemi (Sadece Belirli Rollere)
       const initialMsg = roles.length > 0 ? `⏳ Duyuru kanala gönderildi. Üyelere DM iletiliyor...` : '✅ Duyuru kanala gönderildi. (Rol seçilmediği için DM gönderilmedi)';
-      await interaction.reply({ content: initialMsg, flags: EFM });
+      await interaction.editReply({ content: initialMsg });
 
       if (roles.length > 0) {
         const members = await guild.members.fetch();
@@ -491,14 +538,15 @@ client.on(Events.InteractionCreate, async (interaction) => {
         let failed = 0;
         let total = targetedMembers.length;
 
-        if (total === 0) return interaction.editReply({ content: '❌ Seçilen rollere sahip üye bulunamadı.' });
+        if (total === 0) return interaction.editReply({ content: '❌ Seçilen rollere sahip üye bulunamadı. (Developer Portal\'dan SERVER MEMBERS INTENT ayarını kontrol edin)' });
 
         for (let i = 0; i < total; i++) {
           const m = targetedMembers[i];
           try {
-            await m.send({ embeds: [embed] });
+            await m.user.send({ embeds: [embed] });
             sent++;
           } catch (err) {
+            console.error(`DM Gönderim Hatası (${m.user.tag}):`, err.message);
             failed++;
           }
 
@@ -509,12 +557,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
             }).catch(() => {});
           }
           
-          // Çok hızlı gitmemek için minik bir bekleme (Opsiyonel ama önerilir)
-          await new Promise(resolve => setTimeout(resolve, 300));
+          await new Promise(resolve => setTimeout(resolve, 500));
         }
 
         await interaction.editReply({ 
-          content: `✅ **Duyuru Tamamlandı!**\n🎉 Başarıyla gönderilen: \`${sent}\`\n⚠️ Başarısız (DM Kapalı): \`${failed}\`\n👥 Toplam Hedef: \`${total}\`` 
+          content: `✅ **Duyuru Tamamlandı!**\n🎉 Başarıyla gönderilen: \`${sent}\`\n⚠️ Başarısız: \`${failed}\`\n👥 Toplam Hedef: \`${total}\`\n\n*Not: Eğer hepsi başarısız ise botun DM yetkisini veya Developer Portal'dan Intent ayarlarını kontrol edin.*` 
         });
       }
       return;
@@ -524,32 +571,45 @@ client.on(Events.InteractionCreate, async (interaction) => {
       if (!member.permissions.has(PermissionsBitField.Flags.ManageMessages)) return interaction.reply({ content: 'Yetki yok.', flags: EFM });
       const channel = options.getChannel('kanal');
       const title = options.getString('başlık');
-      const desc = options.getString('açıklama');
+      const desc = options.getString('açıklama') || 'Aşağıdaki seçeneklerden bir veya daha fazlasına tıklayarak oyunuzu verebilirsiniz.\nSeçiminizi geri almak için aynı butona tekrar tıklayın.';
       const optsStr = options.getString('seçenekler');
       const colorInput = options.getString('renk') || '#5865F2';
 
-      const optionsList = optsStr.split(',').map(o => o.trim()).filter(o => o.length > 0);
+      const optionsList = optsStr.split(',').map(o => o.trim()).filter(o => o.length > 0).slice(0, 20);
       if (optionsList.length === 0) return interaction.reply({ content: 'En az bir seçenek belirlemelisiniz.', flags: EFM });
 
       const embed = new EmbedBuilder().setTitle(title).setDescription(desc);
       try { embed.setColor(colorInput); } catch (e) { embed.setColor('#5865F2'); }
 
-      const select = new StringSelectMenuBuilder()
-        .setCustomId('selection_menu')
-        .setPlaceholder('Seçenekleri belirleyin...')
-        .setMinValues(1)
-        .setMaxValues(optionsList.length);
-
       optionsList.forEach(opt => {
-          embed.addFields({ name: `📍 ${opt} (0 Kişi)`, value: `\u200B`, inline: false });
-          select.addOptions(new StringSelectMenuOptionBuilder().setLabel(opt).setValue(opt));
+          embed.addFields({ name: `📍 ${opt} - 0 Oy (%0)`, value: `⬛⬛⬛⬛⬛⬛⬛⬛⬛⬛\n> Henüz oy yok.`, inline: false });
       });
 
-      const row = new ActionRowBuilder().addComponents(select);
-      const buttonRow = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('view_all_voters').setLabel('Tüm Katılımcıları Gör').setStyle(ButtonStyle.Secondary));
+      let rows = [];
+      let currentRow = new ActionRowBuilder();
 
-      await channel.send({ embeds: [embed], components: [row, buttonRow] });
-      return interaction.reply({ content: '✅ Çoklu seçim sistemi başarıyla oluşturuldu.', flags: EFM });
+      optionsList.forEach((opt) => {
+          if (currentRow.components.length === 5) {
+              rows.push(currentRow);
+              currentRow = new ActionRowBuilder();
+          }
+          currentRow.addComponents(
+              new ButtonBuilder()
+                  .setCustomId(`vote_${opt}`)
+                  .setLabel(opt)
+                  .setStyle(ButtonStyle.Primary)
+          );
+      });
+      if (currentRow.components.length > 0) rows.push(currentRow);
+
+      const controlsRow = new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId('view_all_voters').setLabel('Tüm Katılımcıları Gör').setStyle(ButtonStyle.Secondary),
+          new ButtonBuilder().setCustomId('clear_my_votes').setLabel('Seçimimi Temizle').setStyle(ButtonStyle.Danger)
+      );
+      rows.push(controlsRow);
+
+      await channel.send({ embeds: [embed], components: rows });
+      return interaction.reply({ content: '✅ Gelişmiş çoklu seçim sistemi başarıyla oluşturuldu.', flags: EFM });
     }
   } catch (err) {
     console.error(`Komut Hatası (${commandName}):`, err);

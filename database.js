@@ -87,6 +87,13 @@ module.exports = {
   clearChoices: (msgId, userId) => {
     db.prepare('DELETE FROM choices WHERE message_id = ? AND user_id = ?').run(msgId, userId);
   },
+  removeChoice: (msgId, userId, val) => {
+    db.prepare('DELETE FROM choices WHERE message_id = ? AND user_id = ? AND option_value = ?').run(msgId, userId, val);
+  },
+  hasChoice: (msgId, userId, val) => {
+    const row = db.prepare('SELECT option_value FROM choices WHERE message_id = ? AND user_id = ? AND option_value = ?').get(msgId, userId, val);
+    return !!row;
+  },
   getChoicesByMessage: (msgId) => {
     return db.prepare('SELECT * FROM choices WHERE message_id = ?').all(msgId);
   }
