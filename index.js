@@ -234,14 +234,13 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
           optionsList.forEach(optionName => {
               const users = grouped[optionName] || [];
-              const percent = uniqueVoters > 0 ? Math.round((users.length / uniqueVoters) * 100) : 0;
               
               const preview = users.length > 0 
-                  ? (users.join(', ')) 
+                  ? users.join(', ') 
                   : '_Henüz kimse seçmedi_';
 
               newEmbed.addFields({ 
-                  name: `📍 ${optionName} (${users.length} Oy - %${percent})`, 
+                  name: `**📍 ${optionName}** — (\`${users.length}\` Kişi)`, 
                   value: `${preview}`, 
                   inline: false 
               });
@@ -579,7 +578,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       try { embed.setColor(colorInput); } catch (e) { embed.setColor('#5865F2'); }
 
       optionsList.forEach(opt => {
-          embed.addFields({ name: `📍 ${opt} (0 Oy - %0)`, value: `_Henüz kimse seçmedi_`, inline: false });
+          embed.addFields({ name: `**📍 ${opt}** — (\`0\` Kişi)`, value: `_Henüz kimse seçmedi_`, inline: false });
       });
 
       embed.setFooter({ text: 'İstediğin kadar seçeneğe tıklayarak çoklu seçim yapabilirsin.' });
